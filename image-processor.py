@@ -5,8 +5,9 @@ from PIL import Image
 import json
 import io
 import zipfile
+from streamlit.runtime.state import SessionState
 
-st.title("Multi-Image Processing App")
+st.title("Machine Learning Image Processing App")
 
 uploaded_files = st.file_uploader("Choose images", accept_multiple_files=True, type=['png', 'jpg', 'jpeg'])
 
@@ -196,15 +197,78 @@ if uploaded_files:
     for idx, image in enumerate(images):
         cols[idx % 3].image(image, caption=f"Image {idx+1}", use_column_width=True)
     
+    # Add JSON upload option here
+    st.subheader("Import Processing Steps (Optional)")
+    uploaded_json = st.file_uploader("Upload processing steps JSON file", type=['json'])
+
+    imported_steps = None
+    if uploaded_json is not None:
+        imported_steps = json.load(uploaded_json)
+        st.success(f"Successfully imported {len(imported_steps)} processing steps.")
+    
     processing_options = [
         "Original", "Convert to Binary", "Convert to Grayscale", "Color Correction",
         "Black and White", "Denoise", "Erode", "Dilate", "Blur", "Adjust Contrast",
         "Adjust Saturation", "Detect Contours", "Detect Defects"
     ]
     
-    st.session_state.processing_steps = []
+    # Initialize session state
+    if 'processing_steps' not in st.session_state:
+        st.session_state.processing_steps = []
+    if 'steps_to_remove' not in st.session_state:
+        st.session_state.steps_to_remove = set()
+
     step_number = 1
-    continue_processing = True
+    
+    # Apply imported steps if available
+    if imported_steps:
+        st.subheader("Imported Processing Steps")
+        
+        for idx, step in enumerate(imported_steps):
+            if idx not in st.session_state.steps_to_remove:
+                option = step['option']
+                params = step['params']
+                
+                st.write(f"Step {idx+1}: {option}")
+                
+                # Allow changing parameters
+                new_params = get_processing_params(option, f"imported_{idx}")
+                
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write("Updated Parameters:", new_params)
+                with col2:
+                    if st.button(f"Remove Step {idx+1}", key=f"remove_step_{idx}"):
+                        st.session_state.steps_to_remove.add(idx)
+                        st.rerun()
+                
+                if new_params != params:
+                    imported_steps[idx]['params'] = new_params
+        
+        # Remove steps marked for removal
+        imported_steps = [step for idx, step in enumerate(imported_steps) if idx not in st.session_state.steps_to_remove]
+        
+        # Apply remaining imported steps
+        for step in imported_steps:
+            option = step['option']
+            params = step['params']
+            
+            st.subheader(f"Processing Step {step_number}")
+            st.write(f"Applied option: {option}")
+            st.write("Parameters:", params)
+            
+            processed_images = [process_image(img.copy(), option, params) for img in images]
+            
+            cols = st.columns(3)
+            for idx, image in enumerate(processed_images):
+                cols[idx % 3].image(image, caption=f"Image {idx+1} after Step {step_number}", use_column_width=True)
+            
+            images = processed_images
+            st.session_state.processing_steps.append({"option": option, "params": params})
+            step_number += 1
+    
+    # Continue with manual steps
+    continue_processing = st.checkbox("Apply additional processing steps?", key="continue_processing")
     
     while continue_processing:
         st.subheader(f"Processing Step {step_number}")
