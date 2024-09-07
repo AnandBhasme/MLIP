@@ -1,6 +1,6 @@
-# Multi-Image Processing App
+# Machine Learning Image Processor App
 
-This Streamlit app allows users to upload multiple images and apply various image processing techniques to them.
+This Streamlit app allows users to upload multiple images and apply various image processing techniques to them. ML enthusiast can use this to mass process their images
 
 ## Features
 
